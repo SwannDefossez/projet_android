@@ -1,0 +1,13 @@
+﻿[
+  {
+    "id": "insset_saint_quentin",
+    "name": "INSSET Saint-Quentin",
+    "address": "48 Rue d'Ostende, 02100 Saint-Quentin",
+    "latitude": 49.836700138924805,
+    "longitude": 3.299406023298119,
+    "description": "Institut Superieur des Sciences et Techniques (INSSET), campus de Saint-Quentin.",
+    "referenceImageAssetPath": "reference_images/insset-saint-quentin.png",
+    "audioResName": "guide_insset",
+    "orbMatchThreshold": 18
+  }
+]

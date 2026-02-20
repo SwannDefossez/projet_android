@@ -1,0 +1,42 @@
+<resources>
+    <string name="app_name">Tour Guide Augmente</string>
+
+    <string name="map_live_title">Navigation en direct</string>
+    <string name="map_select_poi_prompt">Selectionnez un lieu dinteret sur la carte.</string>
+    <string name="map_selected_poi">Lieu s&#233;lectionn&#233;: %1$s</string>
+    <string name="map_loading_poi">Chargement des lieux dinteret...</string>
+    <string name="map_loading_route">Calcul de litineraire...</string>
+    <string name="map_route_summary">Itineraire: %1$.2f km, %2$.1f min</string>
+    <string name="map_ready">Carte prete. Choisissez un lieu.</string>
+    <string name="map_recenter">Recentrer</string>
+    <string name="map_open_camera">Ouvrir la camera</string>
+    <string name="map_poi_selected_toast">Lieu selectionne: %1$s</string>
+    <string name="map_camera_available_toast">Vous etes a moins de %1$d m. Camera disponible.</string>
+    <string name="map_permission_denied">Permission de localisation refusee.</string>
+
+    <string name="camera_live_title">Verification visuelle</string>
+    <string name="camera_capture">Prendre la photo</string>
+    <string name="camera_prompt">Photographiez %1$s pour valider votre arrivee.</string>
+    <string name="camera_analyzing">Analyse ORB en cours...</string>
+    <string name="camera_not_match">La photo ne correspond pas au lieu. Reessayez.</string>
+    <string name="camera_try_again">Essayez a nouveau.</string>
+    <string name="camera_permission_denied">Permission camera refusee.</string>
+    <string name="camera_missing_poi">Informations du lieu manquantes.</string>
+    <string name="camera_not_ready">Camera non prete.</string>
+    <string name="camera_ready">Camera prete. Cadrez le batiment.</string>
+    <string name="camera_analysis_error">Impossible d analyser la photo.</string>
+    <string name="camera_match_success">Lieu valide. Ouverture de la fiche du lieu.</string>
+    <string name="camera_capture_error">Erreur lors de la capture.</string>
+
+    <string name="guide_default_title">Audio guide</string>
+    <string name="guide_default_address">Adresse indisponible</string>
+    <string name="guide_default_description">Description indisponible.</string>
+    <string name="guide_header_badge">Fiche du lieu</string>
+    <string name="guide_about_title">A propos de ce lieu</string>
+    <string name="guide_address">Adresse: %1$s</string>
+    <string name="guide_play_audio">Lire le guide audio</string>
+    <string name="guide_pause_audio">Mettre en pause</string>
+    <string name="guide_close">Retour a la carte</string>
+    <string name="guide_audio_missing">Fichier audio introuvable.</string>
+    <string name="guide_audio_error">Impossible de lire laudio guide.</string>
+</resources>
