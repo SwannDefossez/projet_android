@@ -8,11 +8,13 @@ import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import com.example.projet_android.R
 import com.example.projet_android.ui.navigation.NavigationExtras
+import java.io.File
 
 class GuideActivity : FragmentActivity() {
 
     private var mediaPlayer: MediaPlayer? = null
     private var isPlayingAudio = false
+    private var cachedAudioFile: File? = null
 
     private lateinit var titleText: TextView
     private lateinit var addressText: TextView
@@ -20,7 +22,7 @@ class GuideActivity : FragmentActivity() {
     private lateinit var playAudioButton: Button
     private lateinit var closeButton: Button
 
-    private var audioResName: String? = null
+    private var audioAssetName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +39,7 @@ class GuideActivity : FragmentActivity() {
             ?: getString(R.string.guide_default_address)
         val poiDescription = intent.getStringExtra(NavigationExtras.EXTRA_POI_DESC)
             ?: getString(R.string.guide_default_description)
-        audioResName = intent.getStringExtra(NavigationExtras.EXTRA_POI_AUDIO)
+        audioAssetName = intent.getStringExtra(NavigationExtras.EXTRA_POI_AUDIO)
 
         titleText.text = poiName
         addressText.text = getString(R.string.guide_address, poiAddress)
@@ -73,27 +75,80 @@ class GuideActivity : FragmentActivity() {
             return
         }
 
-        val audioName = audioResName ?: return
-        val resourceId = resources.getIdentifier(audioName, "raw", packageName)
-
-        if (resourceId == 0) {
+        val audioName = audioAssetName ?: return
+        val assetPath = resolveAudioAssetPath(audioName)
+        if (assetPath == null) {
             Toast.makeText(this, R.string.guide_audio_missing, Toast.LENGTH_LONG).show()
             return
         }
 
         releaseAudio()
-        mediaPlayer = MediaPlayer.create(this, resourceId)?.apply {
+        val player = MediaPlayer()
+        val prepared = prepareMediaPlayerFromAsset(player, assetPath)
+        if (!prepared) {
+            player.release()
+            Toast.makeText(this, R.string.guide_audio_error, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        mediaPlayer = player.apply {
             setOnCompletionListener {
                 pauseAudioGuide()
                 seekTo(0)
             }
             start()
-        } ?: run {
-            Toast.makeText(this, R.string.guide_audio_error, Toast.LENGTH_LONG).show()
-            null
         }
         isPlayingAudio = mediaPlayer?.isPlaying == true
         updateAudioButtonState(isPlaying = isPlayingAudio)
+    }
+
+    private fun prepareMediaPlayerFromAsset(player: MediaPlayer, assetPath: String): Boolean {
+        val directResult = runCatching {
+            assets.openFd(assetPath).use { assetFd ->
+                player.setDataSource(assetFd.fileDescriptor, assetFd.startOffset, assetFd.length)
+            }
+            player.prepare()
+        }
+        if (directResult.isSuccess) return true
+
+        return runCatching {
+            val tempFile = File(cacheDir, "guide_audio_${System.currentTimeMillis()}.tmp")
+            assets.open(assetPath).use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            cachedAudioFile = tempFile
+            player.setDataSource(tempFile.absolutePath)
+            player.prepare()
+        }.isSuccess
+    }
+
+    private fun resolveAudioAssetPath(audioName: String): String? {
+        val trimmed = audioName.trim()
+        if (trimmed.isBlank()) return null
+
+        val fileCandidates = if (trimmed.contains('.')) {
+            listOf(trimmed)
+        } else {
+            AUDIO_EXTENSIONS.map { extension -> "$trimmed$extension" }
+        }
+
+        val pathCandidates = linkedSetOf<String>()
+        for (candidate in fileCandidates) {
+            if (candidate.startsWith("$AUDIO_ASSET_DIR/")) {
+                pathCandidates.add(candidate)
+            } else {
+                pathCandidates.add("$AUDIO_ASSET_DIR/$candidate")
+                pathCandidates.add(candidate)
+            }
+        }
+
+        return pathCandidates.firstOrNull { path ->
+            runCatching {
+                assets.open(path).use { }
+            }.isSuccess
+        }
     }
 
     private fun pauseAudioGuide() {
@@ -108,6 +163,8 @@ class GuideActivity : FragmentActivity() {
             release()
         }
         mediaPlayer = null
+        cachedAudioFile?.delete()
+        cachedAudioFile = null
         isPlayingAudio = false
         updateAudioButtonState(isPlaying = false)
     }
@@ -118,5 +175,10 @@ class GuideActivity : FragmentActivity() {
         playAudioButton.text = getString(textRes)
         playAudioButton.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0)
         playAudioButton.compoundDrawablePadding = 10
+    }
+
+    companion object {
+        private const val AUDIO_ASSET_DIR = "reference_audio"
+        private val AUDIO_EXTENSIONS = listOf(".mp3", ".wav", ".ogg")
     }
 }

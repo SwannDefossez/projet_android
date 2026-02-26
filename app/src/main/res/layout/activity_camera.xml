@@ -32,6 +32,7 @@
         <ImageView
             android:layout_width="18dp"
             android:layout_height="18dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_camera_line"
             app:tint="@android:color/white" />
 
@@ -69,6 +70,15 @@
             android:textColor="@android:color/white"
             android:textSize="15sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/cameraFeedbackText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_horizontal"
+            android:textColor="#D9E8FF"
+            android:textSize="13sp" />
 
         <ProgressBar
             android:id="@+id/cameraProgressBar"

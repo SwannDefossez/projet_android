@@ -5,9 +5,86 @@
     "address": "48 Rue d'Ostende, 02100 Saint-Quentin",
     "latitude": 49.836700138924805,
     "longitude": 3.299406023298119,
-    "description": "Institut Superieur des Sciences et Techniques (INSSET), campus de Saint-Quentin.",
+    "description": "Institut Sup\u00e9rieur des Sciences et Techniques (INSSET), campus de Saint-Quentin.",
     "referenceImageAssetPath": "reference_images/insset-saint-quentin.png",
     "audioResName": "guide_insset",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "gare_saint_quentin",
+    "name": "Gare de Saint-Quentin",
+    "address": "Place de la Gare, 02100 Saint-Quentin",
+    "latitude": 49.8407828,
+    "longitude": 3.2980731,
+    "description": "Gare ferroviaire de Saint-Quentin, point d'acc\u00e8s principal au centre-ville.",
+    "referenceImageAssetPath": "reference_images/gare-saint-quentin.png",
+    "audioResName": "guide_gare_saint_quentin",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "basilique_saint_quentin",
+    "name": "Basilique Saint-Quentin",
+    "address": "Rue de Labon, 02100 Saint-Quentin",
+    "latitude": 49.847835,
+    "longitude": 3.2901831,
+    "description": "Basilique gothique embl\u00e9matique de Saint-Quentin.",
+    "referenceImageAssetPath": "reference_images/basilique-saint-quentin.png",
+    "audioResName": "guide_basilique_saint_quentin",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "hotel_ville_saint_quentin",
+    "name": "H\u00f4tel de Ville de Saint-Quentin",
+    "address": "1 Place de l'H\u00f4tel de Ville, 02100 Saint-Quentin",
+    "latitude": 49.8469685,
+    "longitude": 3.2871983,
+    "description": "H\u00f4tel de Ville historique au c\u0153ur de Saint-Quentin.",
+    "referenceImageAssetPath": "reference_images/hotel-ville-saint-quentin.png",
+    "audioResName": "guide_hotel_ville_saint_quentin",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "theatre_jean_vilar",
+    "name": "Th\u00e9\u00e2tre Jean Vilar",
+    "address": "16 Place de l'H\u00f4tel de Ville, 02100 Saint-Quentin",
+    "latitude": 49.8462421,
+    "longitude": 3.2871561,
+    "description": "Th\u00e9\u00e2tre municipal, lieu culturel majeur de la ville.",
+    "referenceImageAssetPath": "reference_images/theatre-jean-vilar.png",
+    "audioResName": "guide_theatre_jean_vilar",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "palais_fervaques",
+    "name": "Palais de Fervaques",
+    "address": "Rue Victor Basch, 02100 Saint-Quentin",
+    "latitude": 49.8478414,
+    "longitude": 3.2851364,
+    "description": "Ancien palais civil devenu un rep\u00e8re architectural du centre-ville.",
+    "referenceImageAssetPath": "reference_images/palais-fervaques.png",
+    "audioResName": "guide_palais_fervaques",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "musee_antoine_lecuyer",
+    "name": "Mus\u00e9e Antoine L\u00e9cuyer",
+    "address": "28 Rue Antoine L\u00e9cuyer, 02100 Saint-Quentin",
+    "latitude": 49.8499358,
+    "longitude": 3.2849588,
+    "description": "Mus\u00e9e d'art et d'histoire connu notamment pour sa collection de pastels.",
+    "referenceImageAssetPath": "reference_images/musee-antoine-lecuyer.png",
+    "audioResName": "guide_musee_antoine_lecuyer",
+    "orbMatchThreshold": 18
+  },
+  {
+    "id": "parc_d_isle",
+    "name": "Parc d'Isle",
+    "address": "Faubourg d'Isle, 02100 Saint-Quentin",
+    "latitude": 49.8454591,
+    "longitude": 3.3107298,
+    "description": "Grand espace naturel urbain avec sentiers et zones de d\u00e9tente.",
+    "referenceImageAssetPath": "reference_images/parc-d-isle.png",
+    "audioResName": "guide_parc_d_isle",
     "orbMatchThreshold": 18
   }
 ]

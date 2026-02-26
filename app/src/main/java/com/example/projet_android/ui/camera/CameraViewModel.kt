@@ -1,4 +1,4 @@
-package com.example.projet_android.ui.camera
+﻿package com.example.projet_android.ui.camera
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -41,7 +41,8 @@ class CameraViewModel(
                     it.copy(
                         isAnalyzing = false,
                         result = null,
-                        errorMessage = throwable.message ?: "Image analysis failed."
+                        errorMessage = throwable.message
+                            ?: "\u00C9chec de l\u2019analyse de l\u2019image."
                     )
                 }
             }
@@ -64,3 +65,5 @@ class CameraViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
+
+

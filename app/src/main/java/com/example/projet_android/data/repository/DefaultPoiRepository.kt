@@ -1,4 +1,4 @@
-package com.example.projet_android.data.repository
+﻿package com.example.projet_android.data.repository
 
 import com.example.projet_android.data.local.PoiLocalDataSource
 import com.example.projet_android.data.remote.PoiApiService
@@ -27,8 +27,12 @@ class DefaultPoiRepository(
 
         val failure = localResult.exceptionOrNull()
             ?: remoteResult.exceptionOrNull()
-            ?: IllegalStateException("Unable to load POI data from remote and local sources.")
+            ?: IllegalStateException(
+                "Impossible de charger les lieux d\u2019int\u00E9r\u00EAt depuis les sources distante et locale."
+            )
 
         Result.failure(failure)
     }
 }
+
+

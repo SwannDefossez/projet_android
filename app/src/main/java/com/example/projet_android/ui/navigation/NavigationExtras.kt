@@ -10,4 +10,6 @@ object NavigationExtras {
     const val EXTRA_POI_REF_IMAGE = "poi_ref_image"
     const val EXTRA_POI_AUDIO = "poi_audio"
     const val EXTRA_POI_THRESHOLD = "poi_threshold"
+    const val EXTRA_RECOGNITION_GOOD_MATCHES = "recognition_good_matches"
+    const val EXTRA_RECOGNITION_CONFIDENCE = "recognition_confidence"
 }

@@ -26,6 +26,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.projet_android.R
 import com.example.projet_android.TourGuideApplication
 import com.example.projet_android.domain.model.Poi
+import com.example.projet_android.domain.model.RecognitionResult
 import com.example.projet_android.domain.usecase.MatchPoiUseCase
 import com.example.projet_android.ui.guide.GuideActivity
 import com.example.projet_android.ui.navigation.NavigationExtras
@@ -43,6 +44,7 @@ class CameraActivity : FragmentActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var captureButton: Button
     private lateinit var statusText: TextView
+    private lateinit var feedbackText: TextView
     private lateinit var progressBar: ProgressBar
 
     private var imageCapture: ImageCapture? = null
@@ -66,6 +68,7 @@ class CameraActivity : FragmentActivity() {
         previewView = findViewById(R.id.previewView)
         captureButton = findViewById(R.id.captureButton)
         statusText = findViewById(R.id.cameraStatusText)
+        feedbackText = findViewById(R.id.cameraFeedbackText)
         progressBar = findViewById(R.id.cameraProgressBar)
 
         currentPoi = readPoiFromIntent()
@@ -76,6 +79,7 @@ class CameraActivity : FragmentActivity() {
         }
 
         statusText.text = getString(R.string.camera_prompt, currentPoi!!.name)
+        feedbackText.text = ""
         captureButton.setOnClickListener {
             captureAndAnalyze()
         }
@@ -92,6 +96,7 @@ class CameraActivity : FragmentActivity() {
                     progressBar.visibility = if (state.isAnalyzing) View.VISIBLE else View.GONE
                     if (state.isAnalyzing) {
                         statusText.text = getString(R.string.camera_analyzing)
+                        feedbackText.text = ""
                     }
 
                     state.errorMessage?.let { error ->
@@ -106,6 +111,8 @@ class CameraActivity : FragmentActivity() {
                     }
 
                     val result = state.result ?: return@collect
+                    val threshold = currentPoi?.orbMatchThreshold ?: 1
+                    feedbackText.text = buildFeedbackText(result, threshold)
                     if (result.isMatch) {
                         if (!hasNavigatedToGuide) {
                             hasNavigatedToGuide = true
@@ -114,7 +121,7 @@ class CameraActivity : FragmentActivity() {
                                 R.string.camera_match_success,
                                 Toast.LENGTH_SHORT
                             ).show()
-                            openGuide()
+                            openGuide(result)
                         }
                     } else {
                         statusText.text = getString(R.string.camera_not_match)
@@ -209,8 +216,31 @@ class CameraActivity : FragmentActivity() {
         )
     }
 
-    private fun openGuide() {
+    private fun buildFeedbackText(result: RecognitionResult, threshold: Int): String {
+        val summary = getString(
+            R.string.camera_feedback_summary,
+            result.goodMatches,
+            CameraFeedbackAdvisor.confidencePercent(result.confidence)
+        )
+        val adviceRes = when (CameraFeedbackAdvisor.adviceFor(result, threshold)) {
+            CameraAdvice.MATCH_CONFIRMED -> R.string.camera_tip_match_ok
+            CameraAdvice.MOVE_CLOSER -> R.string.camera_tip_move_closer
+            CameraAdvice.REFRAME -> R.string.camera_tip_reframe
+            CameraAdvice.IMPROVE_LIGHTING -> R.string.camera_tip_light
+        }
+        return "$summary\n${getString(adviceRes)}"
+    }
+
+    private fun openGuide(result: RecognitionResult) {
         val poi = currentPoi ?: return
+        setResult(
+            RESULT_OK,
+            Intent().apply {
+                putExtra(NavigationExtras.EXTRA_POI_ID, poi.id)
+                putExtra(NavigationExtras.EXTRA_RECOGNITION_GOOD_MATCHES, result.goodMatches)
+                putExtra(NavigationExtras.EXTRA_RECOGNITION_CONFIDENCE, result.confidence)
+            }
+        )
         val intent = Intent(this, GuideActivity::class.java).apply {
             putExtra(NavigationExtras.EXTRA_POI_ID, poi.id)
             putExtra(NavigationExtras.EXTRA_POI_NAME, poi.name)

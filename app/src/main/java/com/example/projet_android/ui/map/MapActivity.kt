@@ -1,6 +1,7 @@
 package com.example.projet_android.ui.map
 
 import android.Manifest
+import android.app.Activity
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -9,12 +10,14 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Surface
 import android.view.View
 import android.widget.Button
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,6 +52,9 @@ import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener {
 
@@ -74,6 +80,10 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
 
     private lateinit var selectedPoiText: TextView
     private lateinit var statusText: TextView
+    private lateinit var scoreText: TextView
+    private lateinit var checkpointProgressBar: ProgressBar
+    private lateinit var progressText: TextView
+    private lateinit var suggestedPoiText: TextView
     private lateinit var recenterButton: Button
     private lateinit var openCameraButton: Button
 
@@ -91,6 +101,8 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
     private var smoothedBearing: Float? = null
     private var lastAppliedBearing: Float? = null
     private var isUserGestureOnMap = false
+    private var lastRouteRequestMs = 0L
+    private var lastRouteRequestLocation: LatLng? = null
 
     private val locationPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -104,16 +116,62 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
             }
         }
 
+    private val cameraResultLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+            val data = result.data ?: return@registerForActivityResult
+
+            val poiId = data.getStringExtra(NavigationExtras.EXTRA_POI_ID) ?: return@registerForActivityResult
+            val goodMatches = data.getIntExtra(NavigationExtras.EXTRA_RECOGNITION_GOOD_MATCHES, 0)
+            val confidence = data.getFloatExtra(NavigationExtras.EXTRA_RECOGNITION_CONFIDENCE, 0f)
+
+            viewModel.markCheckpointVisited(
+                poiId = poiId,
+                goodMatches = goodMatches,
+                confidence = confidence
+            )
+
+            Toast.makeText(
+                this,
+                getString(R.string.map_checkpoint_validated_toast),
+                Toast.LENGTH_SHORT
+            ).show()
+
+            val state = viewModel.uiState.value
+            if (state.selectedPoi?.id == poiId) {
+                val nextPoi = state.suggestedPoi
+                if (nextPoi != null) {
+                    viewModel.selectPoi(nextPoi)
+                    lastKnownLocation?.let { location ->
+                        requestRoute(
+                            currentPosition = LatLng(location.latitude, location.longitude),
+                            force = true
+                        )
+                    }
+                    Toast.makeText(
+                        this,
+                        getString(R.string.map_next_checkpoint_toast, nextPoi.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_map)
 
         selectedPoiText = findViewById(R.id.selectedPoiText)
         statusText = findViewById(R.id.statusText)
+        scoreText = findViewById(R.id.scoreText)
+        checkpointProgressBar = findViewById(R.id.checkpointProgressBar)
+        progressText = findViewById(R.id.progressText)
+        suggestedPoiText = findViewById(R.id.suggestedPoiText)
         recenterButton = findViewById(R.id.recenterButton)
         openCameraButton = findViewById(R.id.openCameraButton)
 
         recenterButton.setOnClickListener {
+            if (!::googleMap.isInitialized) return@setOnClickListener
             val location = lastKnownLocation ?: return@setOnClickListener
             val latLng = LatLng(location.latitude, location.longitude)
             googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16f))
@@ -162,12 +220,34 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         statusText.text = when {
             state.isLoadingPois -> getString(R.string.map_loading_poi)
             state.isLoadingRoute -> getString(R.string.map_loading_route)
-            state.route != null -> getString(
-                R.string.map_route_summary,
-                (state.route.distanceMeters / 1000.0),
-                (state.route.durationSeconds / 60.0)
-            )
+            state.route != null -> {
+                val eta = state.etaEpochMillis?.let { formatEta(it) } ?: getString(R.string.map_eta_unknown)
+                getString(
+                    R.string.map_route_summary_with_eta,
+                    (state.route.distanceMeters / 1000.0),
+                    (state.route.durationSeconds / 60.0),
+                    eta
+                )
+            }
             else -> getString(R.string.map_ready)
+        }
+
+        scoreText.text = getString(R.string.map_score_value, state.score)
+
+        val checkpointTotal = state.pois.size.coerceAtLeast(1)
+        checkpointProgressBar.max = checkpointTotal
+        checkpointProgressBar.progress = state.visitedPoiIds.size.coerceAtMost(checkpointTotal)
+
+        progressText.text = getString(
+            R.string.map_progress_summary,
+            state.visitedPoiIds.size,
+            state.pois.size
+        )
+
+        suggestedPoiText.text = when {
+            state.pois.isEmpty() -> getString(R.string.map_recommended_waiting)
+            state.suggestedPoi != null -> getString(R.string.map_recommended_next, state.suggestedPoi.name)
+            else -> getString(R.string.map_recommended_complete)
         }
 
         updatePoiMarkers(state.pois, state.selectedPoi)
@@ -265,7 +345,10 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
                 Toast.LENGTH_SHORT
             ).show()
             lastKnownLocation?.let { location ->
-                viewModel.loadRoute(LatLng(location.latitude, location.longitude))
+                requestRoute(
+                    currentPosition = LatLng(location.latitude, location.longitude),
+                    force = true
+                )
             }
             true
         }
@@ -320,6 +403,7 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
     private fun onLocationUpdated(location: Location) {
         lastKnownLocation = location
         val position = LatLng(location.latitude, location.longitude)
+        viewModel.updateUserLocation(position)
 
         if (!::googleMap.isInitialized) return
 
@@ -328,10 +412,7 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
             hasCenteredMap = true
         }
 
-        val state = viewModel.uiState.value
-        if (state.selectedPoi != null && state.route == null && !state.isLoadingRoute) {
-            viewModel.loadRoute(position)
-        }
+        requestRoute(currentPosition = position)
         updateCameraButtonAvailability(location)
     }
 
@@ -401,7 +482,7 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
             putExtra(NavigationExtras.EXTRA_POI_AUDIO, poi.audioResName)
             putExtra(NavigationExtras.EXTRA_POI_THRESHOLD, poi.orbMatchThreshold)
         }
-        startActivity(intent)
+        cameraResultLauncher.launch(intent)
     }
 
     override fun onResume() {
@@ -430,7 +511,7 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         val adjustedRotationMatrix = FloatArray(9)
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 
-        when (display?.rotation ?: Surface.ROTATION_0) {
+        when (currentDisplayRotation()) {
             Surface.ROTATION_0 -> {
                 rotationMatrix.copyInto(adjustedRotationMatrix)
             }
@@ -497,9 +578,58 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         return ((to - from + 540f) % 360f) - 180f
     }
 
+    private fun requestRoute(currentPosition: LatLng, force: Boolean = false) {
+        val state = viewModel.uiState.value
+        if (state.selectedPoi == null || state.isLoadingRoute) return
+        if (!force && !shouldRefreshRoute(currentPosition, state.route != null)) return
+
+        lastRouteRequestMs = SystemClock.elapsedRealtime()
+        lastRouteRequestLocation = currentPosition
+        viewModel.loadRoute(currentPosition)
+    }
+
+    private fun shouldRefreshRoute(currentPosition: LatLng, hasExistingRoute: Boolean): Boolean {
+        if (!hasExistingRoute) return true
+
+        val elapsed = SystemClock.elapsedRealtime() - lastRouteRequestMs
+        if (elapsed >= ROUTE_REFRESH_INTERVAL_MS) return true
+
+        val lastPosition = lastRouteRequestLocation ?: return true
+        val movedMeters = distanceBetweenMeters(lastPosition, currentPosition)
+        return movedMeters >= ROUTE_REFRESH_DISTANCE_METERS
+    }
+
+    private fun distanceBetweenMeters(from: LatLng, to: LatLng): Float {
+        val result = FloatArray(1)
+        Location.distanceBetween(
+            from.latitude,
+            from.longitude,
+            to.latitude,
+            to.longitude,
+            result
+        )
+        return result[0]
+    }
+
+    private fun formatEta(etaEpochMillis: Long): String {
+        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+        return formatter.format(Date(etaEpochMillis))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplayRotation(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.rotation ?: Surface.ROTATION_0
+        } else {
+            windowManager.defaultDisplay.rotation
+        }
+    }
+
     companion object {
         private const val MAP_FRAGMENT_TAG = "map_fragment"
         private const val CAMERA_ENABLE_RADIUS_METERS = 50f
+        private const val ROUTE_REFRESH_INTERVAL_MS = 15_000L
+        private const val ROUTE_REFRESH_DISTANCE_METERS = 20f
         private const val BEARING_UPDATE_INTERVAL_MS = 5_000L
         private const val BEARING_SMOOTHING_ALPHA = 0.22f
         private const val MIN_BEARING_DELTA_DEGREES = 1.5f
