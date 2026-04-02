@@ -39,6 +39,7 @@ class VisitUserFlowTest {
         )
         mapViewModel.loadPois()
         advanceUntilIdle()
+        mapViewModel.confirmRouteSelection(setOf(poiStart.id, poiNext.id))
         mapViewModel.updateUserLocation(LatLng(poiStart.latitude, poiStart.longitude))
         mapViewModel.selectPoi(poiStart)
         mapViewModel.loadRoute(LatLng(poiStart.latitude, poiStart.longitude))

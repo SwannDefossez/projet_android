@@ -35,12 +35,19 @@ class MapViewModel(
             val result = loadPoisUseCase()
             result.onSuccess { pois ->
                 _uiState.update {
-                    withSuggestedPoi(
-                        it.copy(
-                            isLoadingPois = false,
-                            pois = pois.sortedBy { poi -> poi.name },
-                            errorMessage = null
-                        )
+                    it.copy(
+                        isLoadingPois = false,
+                        allPois = pois.sortedBy { poi -> poi.name },
+                        pois = emptyList(),
+                        isRouteSelectionPending = true,
+                        draftSelectedPoiIds = emptySet(),
+                        visitedPoiIds = emptySet(),
+                        score = 0,
+                        suggestedPoi = null,
+                        selectedPoi = null,
+                        route = null,
+                        etaEpochMillis = null,
+                        errorMessage = null
                     )
                 }
             }.onFailure { throwable ->
@@ -56,8 +63,60 @@ class MapViewModel(
     }
 
     fun selectPoi(poi: Poi) {
+        val state = _uiState.value
+        if (state.isRouteSelectionPending || state.pois.none { it.id == poi.id }) return
         _uiState.update {
             it.copy(selectedPoi = poi, route = null, etaEpochMillis = null, errorMessage = null)
+        }
+    }
+
+    fun toggleDraftPoiSelection(poiId: String) {
+        val state = _uiState.value
+        if (!state.isRouteSelectionPending || state.allPois.none { it.id == poiId }) return
+
+        val updatedSelection = state.draftSelectedPoiIds.toMutableSet().apply {
+            if (!add(poiId)) remove(poiId)
+        }
+        _uiState.update { it.copy(draftSelectedPoiIds = updatedSelection) }
+    }
+
+    fun startDraftRouteSelection() {
+        confirmRouteSelection(_uiState.value.draftSelectedPoiIds)
+    }
+
+    fun beginRouteSelectionEdit() {
+        _uiState.update { state ->
+            state.copy(
+                isRouteSelectionPending = true,
+                draftSelectedPoiIds = state.pois.map { poi -> poi.id }.toSet(),
+                selectedPoi = null,
+                route = null,
+                etaEpochMillis = null,
+                errorMessage = null
+            )
+        }
+    }
+
+    fun confirmRouteSelection(selectedPoiIds: Set<String>) {
+        if (selectedPoiIds.isEmpty()) return
+
+        val selectedPois = _uiState.value.allPois.filter { poi -> poi.id in selectedPoiIds }
+        _uiState.update { state ->
+            val updatedState = withSuggestedPoi(
+                state.copy(
+                    pois = selectedPois,
+                    isRouteSelectionPending = false,
+                    draftSelectedPoiIds = selectedPoiIds,
+                    visitedPoiIds = state.visitedPoiIds.intersect(selectedPoiIds),
+                    selectedPoi = state.selectedPoi?.takeIf { it.id in selectedPoiIds },
+                    route = null,
+                    etaEpochMillis = null,
+                    errorMessage = null
+                )
+            )
+            updatedState.copy(
+                selectedPoi = updatedState.selectedPoi ?: updatedState.suggestedPoi
+            )
         }
     }
 
@@ -98,7 +157,9 @@ class MapViewModel(
 
     fun markCheckpointVisited(poiId: String, goodMatches: Int, confidence: Float) {
         val state = _uiState.value
-        if (poiId in state.visitedPoiIds) return
+        if (state.isRouteSelectionPending || state.pois.none { it.id == poiId } || poiId in state.visitedPoiIds) {
+            return
+        }
 
         val gainedScore = 100 +
             (confidence.coerceIn(0f, 1f) * 100f).roundToInt() +

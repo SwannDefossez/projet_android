@@ -95,6 +95,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/bottomInfoPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -147,23 +148,38 @@
                 app:iconTint="@android:color/white" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/openCameraButton"
+                android:id="@+id/editRouteButton"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_button_chip_accent"
-                android:drawableStart="@drawable/ic_camera_line"
-                android:drawablePadding="8dp"
+                android:background="@drawable/bg_button_chip"
                 android:paddingStart="10dp"
                 android:paddingEnd="10dp"
-                android:text="@string/map_open_camera"
+                android:text="@string/map_edit_route"
                 android:textAllCaps="false"
                 android:textColor="@android:color/white"
                 android:textStyle="bold"
                 android:visibility="gone"
-                app:backgroundTint="@null"
-                app:iconTint="@android:color/white" />
+                app:backgroundTint="@null" />
         </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/openCameraButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_button_chip_accent"
+            android:drawableStart="@drawable/ic_camera_line"
+            android:drawablePadding="8dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="@string/map_open_camera"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:backgroundTint="@null"
+            app:iconTint="@android:color/white" />
     </LinearLayout>
 </FrameLayout>

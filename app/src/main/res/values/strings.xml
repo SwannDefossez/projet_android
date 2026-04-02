@@ -9,14 +9,27 @@
     <string name="map_route_summary_with_eta">Itin&#233;raire : %1$.2f km, %2$.1f min | Heure d\'arriv&#233;e : %3$s</string>
     <string name="map_eta_unknown">--:--</string>
     <string name="map_ready">Carte pr&#234;te. Choisissez un lieu.</string>
+    <string name="map_route_selection_required">Composez votre parcours.</string>
+    <string name="map_route_selection_status">Touchez les marqueurs pour ajouter ou retirer des points a visiter.</string>
+    <string name="map_route_selection_confirm">Demarrer le parcours</string>
+    <string name="map_route_selection_error">Selectionnez au moins un point pour demarrer.</string>
+    <string name="map_route_selection_toast">Parcours demarre : %1$d point(s).</string>
+    <string name="map_route_selection_hint_empty">Aucun point selectionne. Choisissez au moins un marqueur.</string>
+    <string name="map_route_selection_hint_ready">Points choisis : %1$d. Appuyez sur Demarrer le parcours.</string>
     <string name="map_score_value">Score : %1$d pts</string>
     <string name="map_progress_summary">Checkpoints valid&#233;s : %1$d/%2$d</string>
+    <string name="map_progress_waiting_selection">Points choisis : %1$d/%2$d</string>
     <string name="map_recommended_waiting">Parcours conseill&#233; : en attente des lieux.</string>
+    <string name="map_recommended_route_selection">Parcours conseill&#233; : selectionnez d\'abord vos points sur la carte.</string>
     <string name="map_recommended_next">Parcours conseill&#233; : prochain arr&#234;t %1$s</string>
     <string name="map_recommended_complete">Parcours conseill&#233; : circuit termin&#233;.</string>
     <string name="map_recenter">Recentrer</string>
+    <string name="map_edit_route">Modifier</string>
     <string name="map_open_camera">Ouvrir la cam&#233;ra</string>
+    <string name="map_start_route">Demarrer le parcours</string>
     <string name="map_poi_selected_toast">Lieu s&#233;lectionn&#233; : %1$s</string>
+    <string name="map_poi_added_to_route">Ajoute au parcours : %1$s</string>
+    <string name="map_poi_removed_from_route">Retire du parcours : %1$s</string>
     <string name="map_camera_available_toast">Vous &#234;tes &#224; moins de %1$d m. Cam&#233;ra disponible.</string>
     <string name="map_checkpoint_validated_toast">Checkpoint valid&#233;. Progression mise &#224; jour.</string>
     <string name="map_next_checkpoint_toast">Prochain checkpoint conseill&#233; : %1$s</string>
@@ -40,6 +53,8 @@
     <string name="camera_tip_move_closer">Conseil : rapprochez-vous et gardez la fa&#231;ade compl&#232;te dans le cadre.</string>
     <string name="camera_tip_reframe">Conseil : stabilisez le t&#233;l&#233;phone et recentrez le b&#226;timent.</string>
     <string name="camera_tip_light">Conseil : augmentez la luminosit&#233; et &#233;vitez le flou.</string>
+    <string name="camera_demo_validate">Valider en mode d&#233;mo</string>
+    <string name="camera_demo_success">Mode d&#233;mo : validation du lieu.</string>
 
     <string name="guide_default_title">Audio guide</string>
     <string name="guide_default_address">Adresse indisponible</string>
