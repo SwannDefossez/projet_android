@@ -41,6 +41,9 @@ class MapViewModelProgressionTest {
 
         viewModel.loadPois()
         advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isRouteSelectionPending)
+        viewModel.confirmRouteSelection(pois.map { it.id }.toSet())
+        assertEquals("poi_a", viewModel.uiState.value.selectedPoi?.id)
         viewModel.updateUserLocation(LatLng(49.8371, 3.3001))
         val firstSuggestion = viewModel.uiState.value.suggestedPoi
         assertEquals("poi_b", firstSuggestion?.id)
@@ -71,6 +74,7 @@ class MapViewModelProgressionTest {
 
         viewModel.loadPois()
         advanceUntilIdle()
+        viewModel.confirmRouteSelection(setOf(poi.id))
         viewModel.markCheckpointVisited(poiId = poi.id, goodMatches = 10, confidence = 0.5f)
         val firstScore = viewModel.uiState.value.score
         viewModel.markCheckpointVisited(poiId = poi.id, goodMatches = 40, confidence = 1f)

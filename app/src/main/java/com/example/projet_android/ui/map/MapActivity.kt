@@ -27,6 +27,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.button.MaterialButton
 import com.example.projet_android.R
 import com.example.projet_android.TourGuideApplication
 import com.example.projet_android.domain.model.Poi
@@ -46,6 +47,7 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polyline
@@ -84,8 +86,12 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
     private lateinit var checkpointProgressBar: ProgressBar
     private lateinit var progressText: TextView
     private lateinit var suggestedPoiText: TextView
+    private lateinit var mapContainer: View
+    private lateinit var gameTopPanel: View
+    private lateinit var bottomInfoPanel: View
     private lateinit var recenterButton: Button
-    private lateinit var openCameraButton: Button
+    private lateinit var editRouteButton: MaterialButton
+    private lateinit var openCameraButton: MaterialButton
 
     private lateinit var locationCallback: LocationCallback
     private lateinit var googleMap: GoogleMap
@@ -93,7 +99,8 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
     private val poiMarkers = mutableMapOf<String, Marker>()
     private var routePolyline: Polyline? = null
     private var lastKnownLocation: Location? = null
-    private var hasCenteredMap = false
+    private var hasShownInitialPoiOverview = false
+    private var hasAutoCenteredOnUser = false
     private var lastShownError: String? = null
     private var nearbyPoiForCamera: Poi? = null
     private var lastNearEnoughPoiId: String? = null
@@ -167,18 +174,58 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         checkpointProgressBar = findViewById(R.id.checkpointProgressBar)
         progressText = findViewById(R.id.progressText)
         suggestedPoiText = findViewById(R.id.suggestedPoiText)
+        mapContainer = findViewById(R.id.mapContainer)
+        gameTopPanel = findViewById(R.id.gameTopPanel)
+        bottomInfoPanel = findViewById(R.id.bottomInfoPanel)
         recenterButton = findViewById(R.id.recenterButton)
+        editRouteButton = findViewById(R.id.editRouteButton)
         openCameraButton = findViewById(R.id.openCameraButton)
 
         recenterButton.setOnClickListener {
             if (!::googleMap.isInitialized) return@setOnClickListener
-            val location = lastKnownLocation ?: return@setOnClickListener
-            val latLng = LatLng(location.latitude, location.longitude)
-            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16f))
+            val location = lastKnownLocation
+            val pois = currentMapPois(viewModel.uiState.value)
+            if (location != null && shouldAutoCenterOnUser(location, pois)) {
+                val latLng = LatLng(location.latitude, location.longitude)
+                googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, USER_FOCUS_ZOOM))
+            } else {
+                focusMapOnPois(pois, animated = true)
+            }
+        }
+        editRouteButton.setOnClickListener {
+            hasShownInitialPoiOverview = false
+            viewModel.beginRouteSelectionEdit()
         }
         openCameraButton.setOnClickListener {
-            nearbyPoiForCamera?.let { poi ->
-                launchCamera(poi)
+            val state = viewModel.uiState.value
+            if (state.isRouteSelectionPending) {
+                if (state.draftSelectedPoiIds.isEmpty()) {
+                    Toast.makeText(this, R.string.map_route_selection_error, Toast.LENGTH_SHORT).show()
+                } else {
+                    hasShownInitialPoiOverview = false
+                    viewModel.startDraftRouteSelection()
+                    val updatedState = viewModel.uiState.value
+                    updatedState.selectedPoi?.takeIf { ::googleMap.isInitialized }?.let { poi ->
+                        googleMap.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(poi.toLatLng(), POI_SELECTION_ZOOM)
+                        )
+                        lastKnownLocation?.let { location ->
+                            requestRoute(
+                                currentPosition = LatLng(location.latitude, location.longitude),
+                                force = true
+                            )
+                        }
+                    }
+                    Toast.makeText(
+                        this,
+                        getString(R.string.map_route_selection_toast, state.draftSelectedPoiIds.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } else {
+                nearbyPoiForCamera?.let { poi ->
+                    launchCamera(poi)
+                }
             }
         }
 
@@ -213,12 +260,17 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
     }
 
     private fun renderState(state: MapUiState) {
-        selectedPoiText.text = state.selectedPoi?.let {
-            getString(R.string.map_selected_poi, it.name)
-        } ?: getString(R.string.map_select_poi_prompt)
+        val visiblePois = currentMapPois(state)
+
+        selectedPoiText.text = when {
+            state.isRouteSelectionPending -> getString(R.string.map_route_selection_required)
+            state.selectedPoi != null -> getString(R.string.map_selected_poi, state.selectedPoi.name)
+            else -> getString(R.string.map_select_poi_prompt)
+        }
 
         statusText.text = when {
             state.isLoadingPois -> getString(R.string.map_loading_poi)
+            state.isRouteSelectionPending -> getString(R.string.map_route_selection_status)
             state.isLoadingRoute -> getString(R.string.map_loading_route)
             state.route != null -> {
                 val eta = state.etaEpochMillis?.let { formatEta(it) } ?: getString(R.string.map_eta_unknown)
@@ -238,21 +290,40 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         checkpointProgressBar.max = checkpointTotal
         checkpointProgressBar.progress = state.visitedPoiIds.size.coerceAtMost(checkpointTotal)
 
-        progressText.text = getString(
-            R.string.map_progress_summary,
-            state.visitedPoiIds.size,
-            state.pois.size
-        )
+        progressText.text = if (state.isRouteSelectionPending) {
+            getString(
+                R.string.map_progress_waiting_selection,
+                state.draftSelectedPoiIds.size,
+                state.allPois.size
+            )
+        } else {
+            getString(
+                R.string.map_progress_summary,
+                state.visitedPoiIds.size,
+                state.pois.size
+            )
+        }
 
         suggestedPoiText.text = when {
+            state.isRouteSelectionPending && state.draftSelectedPoiIds.isEmpty() ->
+                getString(R.string.map_route_selection_hint_empty)
+            state.isRouteSelectionPending ->
+                getString(R.string.map_route_selection_hint_ready, state.draftSelectedPoiIds.size)
             state.pois.isEmpty() -> getString(R.string.map_recommended_waiting)
             state.suggestedPoi != null -> getString(R.string.map_recommended_next, state.suggestedPoi.name)
             else -> getString(R.string.map_recommended_complete)
         }
 
-        updatePoiMarkers(state.pois, state.selectedPoi)
+        updatePoiMarkers(
+            pois = visiblePois,
+            selectedPoi = state.selectedPoi,
+            isRouteSelectionPending = state.isRouteSelectionPending,
+            draftSelectedPoiIds = state.draftSelectedPoiIds
+        )
         updateRoutePolyline(state.route?.polylinePoints ?: emptyList())
+        maybeShowInitialPoiOverview(visiblePois)
         updateCameraButtonAvailability(lastKnownLocation)
+        updatePrimaryActionButton(state)
 
         val error = state.errorMessage
         if (!error.isNullOrBlank() && error != lastShownError) {
@@ -264,7 +335,12 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         }
     }
 
-    private fun updatePoiMarkers(pois: List<Poi>, selectedPoi: Poi?) {
+    private fun updatePoiMarkers(
+        pois: List<Poi>,
+        selectedPoi: Poi?,
+        isRouteSelectionPending: Boolean,
+        draftSelectedPoiIds: Set<String>
+    ) {
         if (!::googleMap.isInitialized) return
 
         val ids = pois.map { it.id }.toSet()
@@ -296,13 +372,13 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         }
 
         poiMarkers.forEach { (poiId, marker) ->
-            marker.setIcon(
-                if (selectedPoi?.id == poiId) {
-                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
-                } else {
-                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-                }
-            )
+            val hue = when {
+                isRouteSelectionPending && poiId in draftSelectedPoiIds -> BitmapDescriptorFactory.HUE_GREEN
+                isRouteSelectionPending -> BitmapDescriptorFactory.HUE_RED
+                selectedPoi?.id == poiId -> BitmapDescriptorFactory.HUE_ORANGE
+                else -> BitmapDescriptorFactory.HUE_RED
+            }
+            marker.setIcon(BitmapDescriptorFactory.defaultMarker(hue))
         }
     }
 
@@ -330,6 +406,9 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
             isZoomControlsEnabled = false
             isIndoorLevelPickerEnabled = false
         }
+        mapContainer.post { updateMapPadding() }
+        gameTopPanel.post { updateMapPadding() }
+        bottomInfoPanel.post { updateMapPadding() }
         googleMap.setOnCameraMoveStartedListener { reason ->
             isUserGestureOnMap = reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE
         }
@@ -338,7 +417,20 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         }
         googleMap.setOnMarkerClickListener { marker ->
             val poi = marker.tag as? Poi ?: return@setOnMarkerClickListener false
+            val state = viewModel.uiState.value
+            if (state.isRouteSelectionPending) {
+                val wasSelected = poi.id in state.draftSelectedPoiIds
+                viewModel.toggleDraftPoiSelection(poi.id)
+                val messageRes = if (wasSelected) {
+                    R.string.map_poi_removed_from_route
+                } else {
+                    R.string.map_poi_added_to_route
+                }
+                Toast.makeText(this, getString(messageRes, poi.name), Toast.LENGTH_SHORT).show()
+                return@setOnMarkerClickListener true
+            }
             viewModel.selectPoi(poi)
+            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(poi.toLatLng(), POI_SELECTION_ZOOM))
             Toast.makeText(
                 this,
                 getString(R.string.map_poi_selected_toast, poi.name),
@@ -407,16 +499,87 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
 
         if (!::googleMap.isInitialized) return
 
-        if (!hasCenteredMap) {
-            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(position, 16f))
-            hasCenteredMap = true
+        if (!hasAutoCenteredOnUser && shouldAutoCenterOnUser(location, currentMapPois(viewModel.uiState.value))) {
+            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(position, USER_FOCUS_ZOOM))
+            hasAutoCenteredOnUser = true
         }
 
         requestRoute(currentPosition = position)
         updateCameraButtonAvailability(location)
     }
 
+    private fun maybeShowInitialPoiOverview(pois: List<Poi>) {
+        if (!::googleMap.isInitialized || hasShownInitialPoiOverview || pois.isEmpty()) return
+        focusMapOnPois(pois, animated = false)
+        hasShownInitialPoiOverview = true
+    }
+
+    private fun focusMapOnPois(pois: List<Poi>, animated: Boolean) {
+        if (!::googleMap.isInitialized || pois.isEmpty()) return
+
+        mapContainer.post {
+            if (pois.size == 1) {
+                val update = CameraUpdateFactory.newLatLngZoom(pois.first().toLatLng(), DEFAULT_POI_OVERVIEW_ZOOM)
+                if (animated) {
+                    googleMap.animateCamera(update)
+                } else {
+                    googleMap.moveCamera(update)
+                }
+                return@post
+            }
+
+            val boundsBuilder = LatLngBounds.Builder()
+            pois.forEach { poi -> boundsBuilder.include(poi.toLatLng()) }
+            val boundsUpdate = CameraUpdateFactory.newLatLngBounds(
+                boundsBuilder.build(),
+                dpToPx(POI_BOUNDS_PADDING_DP)
+            )
+
+            if (animated) {
+                googleMap.animateCamera(boundsUpdate)
+            } else {
+                googleMap.moveCamera(boundsUpdate)
+            }
+
+            val maxZoomUpdate = CameraUpdateFactory.zoomTo(MAX_POI_OVERVIEW_ZOOM)
+            if (googleMap.cameraPosition.zoom > MAX_POI_OVERVIEW_ZOOM) {
+                if (animated) {
+                    googleMap.animateCamera(maxZoomUpdate)
+                } else {
+                    googleMap.moveCamera(maxZoomUpdate)
+                }
+            }
+        }
+    }
+
+    private fun updateMapPadding() {
+        if (!::googleMap.isInitialized) return
+        googleMap.setPadding(
+            dpToPx(MAP_SIDE_PADDING_DP),
+            gameTopPanel.height + dpToPx(MAP_VERTICAL_PADDING_DP),
+            dpToPx(MAP_SIDE_PADDING_DP),
+            bottomInfoPanel.height + dpToPx(MAP_VERTICAL_PADDING_DP)
+        )
+    }
+
+    private fun shouldAutoCenterOnUser(location: Location, pois: List<Poi>): Boolean {
+        if (pois.isEmpty()) return true
+
+        val nearestPoiDistance = pois.minOf { poi ->
+            distanceBetweenMeters(
+                LatLng(location.latitude, location.longitude),
+                poi.toLatLng()
+            )
+        }
+        return nearestPoiDistance <= USER_AUTO_CENTER_MAX_DISTANCE_METERS
+    }
+
     private fun updateCameraButtonAvailability(location: Location?) {
+        if (viewModel.uiState.value.isRouteSelectionPending) {
+            nearbyPoiForCamera = null
+            return
+        }
+
         val selectedPoi = viewModel.uiState.value.selectedPoi
         if (location == null || selectedPoi == null) {
             nearbyPoiForCamera = null
@@ -616,6 +779,31 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
         return formatter.format(Date(etaEpochMillis))
     }
 
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    private fun currentMapPois(state: MapUiState): List<Poi> {
+        return if (state.isRouteSelectionPending) state.allPois else state.pois
+    }
+
+    private fun updatePrimaryActionButton(state: MapUiState) {
+        if (state.isRouteSelectionPending) {
+            editRouteButton.visibility = View.GONE
+            openCameraButton.visibility = View.VISIBLE
+            openCameraButton.text = getString(R.string.map_start_route)
+            openCameraButton.icon = null
+            openCameraButton.isEnabled = state.draftSelectedPoiIds.isNotEmpty()
+            return
+        }
+
+        editRouteButton.visibility = View.VISIBLE
+        openCameraButton.text = getString(R.string.map_open_camera)
+        openCameraButton.setIconResource(R.drawable.ic_camera_line)
+        openCameraButton.isEnabled = nearbyPoiForCamera != null
+        openCameraButton.visibility = if (nearbyPoiForCamera != null) View.VISIBLE else View.GONE
+    }
+
     @Suppress("DEPRECATION")
     private fun currentDisplayRotation(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -628,6 +816,14 @@ class MapActivity : FragmentActivity(), OnMapReadyCallback, SensorEventListener 
     companion object {
         private const val MAP_FRAGMENT_TAG = "map_fragment"
         private const val CAMERA_ENABLE_RADIUS_METERS = 50f
+        private const val USER_AUTO_CENTER_MAX_DISTANCE_METERS = 250f
+        private const val USER_FOCUS_ZOOM = 18f
+        private const val POI_SELECTION_ZOOM = 19f
+        private const val DEFAULT_POI_OVERVIEW_ZOOM = 18f
+        private const val MAX_POI_OVERVIEW_ZOOM = 18.7f
+        private const val POI_BOUNDS_PADDING_DP = 72
+        private const val MAP_SIDE_PADDING_DP = 16
+        private const val MAP_VERTICAL_PADDING_DP = 24
         private const val ROUTE_REFRESH_INTERVAL_MS = 15_000L
         private const val ROUTE_REFRESH_DISTANCE_METERS = 20f
         private const val BEARING_UPDATE_INTERVAL_MS = 5_000L

@@ -43,6 +43,7 @@ class CameraActivity : FragmentActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var captureButton: Button
+    private lateinit var demoValidateButton: Button
     private lateinit var statusText: TextView
     private lateinit var feedbackText: TextView
     private lateinit var progressBar: ProgressBar
@@ -67,6 +68,7 @@ class CameraActivity : FragmentActivity() {
 
         previewView = findViewById(R.id.previewView)
         captureButton = findViewById(R.id.captureButton)
+        demoValidateButton = findViewById(R.id.demoValidateButton)
         statusText = findViewById(R.id.cameraStatusText)
         feedbackText = findViewById(R.id.cameraFeedbackText)
         progressBar = findViewById(R.id.cameraProgressBar)
@@ -83,6 +85,9 @@ class CameraActivity : FragmentActivity() {
         captureButton.setOnClickListener {
             captureAndAnalyze()
         }
+        demoValidateButton.setOnClickListener {
+            validateInDemoMode()
+        }
 
         observeUiState()
         requestCameraPermissionIfNeeded()
@@ -93,6 +98,7 @@ class CameraActivity : FragmentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
                     captureButton.isEnabled = !state.isAnalyzing
+                    demoValidateButton.isEnabled = !state.isAnalyzing
                     progressBar.visibility = if (state.isAnalyzing) View.VISIBLE else View.GONE
                     if (state.isAnalyzing) {
                         statusText.text = getString(R.string.camera_analyzing)
@@ -229,6 +235,25 @@ class CameraActivity : FragmentActivity() {
             CameraAdvice.IMPROVE_LIGHTING -> R.string.camera_tip_light
         }
         return "$summary\n${getString(adviceRes)}"
+    }
+
+    private fun validateInDemoMode() {
+        val poi = currentPoi ?: return
+        if (hasNavigatedToGuide) return
+
+        val forcedMatches = (poi.orbMatchThreshold + 8).coerceAtLeast(20)
+        val demoResult = RecognitionResult(
+            poiId = poi.id,
+            goodMatches = forcedMatches,
+            isMatch = true,
+            confidence = 1f
+        )
+
+        statusText.text = getString(R.string.camera_demo_success)
+        feedbackText.text = buildFeedbackText(demoResult, poi.orbMatchThreshold)
+        Toast.makeText(this, R.string.camera_demo_success, Toast.LENGTH_SHORT).show()
+        hasNavigatedToGuide = true
+        openGuide(demoResult)
     }
 
     private fun openGuide(result: RecognitionResult) {

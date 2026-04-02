@@ -101,5 +101,17 @@
             android:textColor="@android:color/white"
             android:textStyle="bold"
             app:iconTint="@android:color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/demoValidateButton"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_button_chip_accent"
+            android:text="@string/camera_demo_validate"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
     </LinearLayout>
 </FrameLayout>
